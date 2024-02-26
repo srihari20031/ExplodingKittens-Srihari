@@ -1,0 +1,9 @@
+@import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&family=Protest+Revolution&display=swap");
+* {
+    font-family: "Fredoka", sans-serif;
+    font-weight: 400;
+}
+body {
+  background-image: url("./assets/images/ExpolodeBg.jpg");
+  background-size: cover;
+}
