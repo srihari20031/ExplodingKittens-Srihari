@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -32,6 +31,7 @@ func main() {
 
 	app.Post("/api/leaderboard", func(c *fiber.Ctx) error {
 		var data map[string]string
+
 		if err := c.BodyParser(&data); err != nil {
 			return c.Status(http.StatusBadRequest).JSON(fiber.Map{
 				"error": "Invalid request body",
@@ -39,86 +39,64 @@ func main() {
 		}
 		username := data["username"]
 
-		//converts the string into numeric data 
-		score, err := strconv.Atoi(data["score"])
-		if err != nil {
-			return c.Status(http.StatusBadRequest).JSON(fiber.Map{
-				"error": "Invalid score format",
-			})
-		}
-
-		//redis checks whether the  user already exists or not
+		// Check if user exists in database
 		exists, err := client.Exists(context.Background(), username).Result()
+
 		if err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Failed to check if user exists",
 			})
 		}
 
-		//if user does not new user willl be created
-		if exists == 0 {
-			// User doesn't exist, create a new row in leaderboard
-			err := client.HSet(context.Background(), "leaderboard", username, score).Err()
+		if exists == 1 {
+			// User exists, increment their score by 1
+			err := client.HIncrBy(context.Background(), "leaderboard", username, 1).Err()
 			if err != nil {
 				return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-					"error": "Failed to create new user",
+					"error": "Failed to increment user score",
 				})
 			}
 		} else {
-			// User exists, increment the user score
-			err := client.HIncrBy(context.Background(), "leaderboard", username, int64(score)).Err()
+			// User does not exist, add them to the leaderboard with a score of 1
+			err := client.HSet(context.Background(), "leaderboard", username, 1).Err()
 			if err != nil {
 				return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-					"error": "Failed to update user score",
+					"error": "Failed to add new user",
 				})
 			}
 		}
 
-		return c.JSON(fiber.Map{
+		return c.Status(http.StatusOK).JSON(fiber.Map{
 			"message": "Score updated successfully",
 		})
 	})
 
-	app.Get("/leaderboard", func(c *fiber.Ctx) error {
-		// Retrieve leaderboard
-		leaderboard, err := client.HGetAll(context.Background(), "leaderboard").Result()
+	app.Get("/api/leaderboard", func(c *fiber.Ctx) error {
+		// Get leaderboard members along with their scores, in descending order(rev range is used for that)
+		leaderboard, err := client.ZRevRangeWithScores(context.Background(), "leaderboard", 0, -1).Result()
+
 		if err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Failed to retrieve leaderboard",
 			})
 		}
 
-		// Convert leaderboard data to a slice of structs for sorting
-		type playerScore struct {
-			Username string
-			Score    int
+		// Create a slice of map to hold the leaderboard data
+		leaderboardData := make([]map[string]string, len(leaderboard))
+
+		// Loop through the leaderboard and add data to the slice
+		for i, member := range leaderboard {
+			leaderboardData[i] = map[string]string{
+				"username": member.Member.(string),
+				"score":    strconv.FormatFloat(member.Score, 'f', -1, 64),
+			}
 		}
 
-		var players []playerScore
-		for username, scoreStr := range leaderboard {
-			score, _ := strconv.Atoi(scoreStr)
-			players = append(players, playerScore{Username: username, Score: score})
-		}
-
-		// Sort players by score (descending order)
-		sort.SliceStable(players, func(i, j int) bool {
-			return players[i].Score > players[j].Score
-		})
-
-		// Prepare the response
-		var leaderboardResponse []map[string]interface{}
-		for rank, player := range players {
-			leaderboardResponse = append(leaderboardResponse, map[string]interface{}{
-				"rank":     rank + 1,
-				"username": player.Username,
-				"score":    player.Score,
-			})
-		}
-
+		// Return the leaderboard data
 		return c.JSON(fiber.Map{
-			"leaderboard": leaderboardResponse,
+			"leaderboard": leaderboardData,
 		})
 	})
 
-	log.Fatal(app.Listen(":6000")) // listen on port 5000
+	log.Fatal(app.Listen(":5000")) // listen on port 5000
 }

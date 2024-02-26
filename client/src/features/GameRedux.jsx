@@ -1,14 +1,12 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { Shuffle } from "./Shuffle";
 
-const types = ["Cat", "Defuse", "Shuffle", "Exploding Kitten"];
+const types = ["Cat", "Defuse", "Shuffle", "ExplodingKitten"];
 //the deck with five cards
-let cardsArray = [...Array(5)].map(
-  () => types[Math.floor(Math.random() * types.length)]
-);
+let cardsArray = ["Cat", "Defuse", "Shuffle", "ExplodingKitten", "Cat"];
 //this is the intial state of the game
 const initialState = {
-  deck: cardsArray,
+  deck: Shuffle(cardsArray), //shuffles the array and assign
   cardInhand: "",
   gameWon: false,
   gameOver: false,
@@ -40,7 +38,9 @@ export const gameSlice = createSlice({
     ShuffleCard: (state) => {
       return {
         ...state,
-        deck: Shuffle(initialState.deck),
+        deck: [...Array(5)].map(
+          () => types[Math.floor(Math.random() * types.length)]
+        ),
       };
     },
     AddPoints: (state) => {
@@ -58,7 +58,9 @@ export const gameSlice = createSlice({
     },
 
     GameRestart: (state) => {
-      state.deck = Shuffle(initialState.deck);
+      state.deck = [...Array(5)].map(
+        () => types[Math.floor(Math.random() * types.length)]
+      );
       state.gameOver = false;
       state.gameWon = false;
     },
